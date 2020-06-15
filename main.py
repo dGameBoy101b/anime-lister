@@ -1,75 +1,171 @@
 from os import path
-from file_list import FileList
+
+#file io constants
+FILE_SEP_CHAR = ','
+FILE_STR_CHAR = '`'
+
+#command parse constants
+COM_SEP = ' '
+CLOSE_COM = 'close'
+HELP_COM = 'help'
+ADD_COM = 'add'
+VIEW_COM = 'view'
+DELETE_COM = 'remove'
+EDIT_COM = 'edit'
+ADD_TAG_COM = 'tag'
+DELETE_TAG_COM = 'untag'
+LIST_TAGS_COM = 'tags'
 
 def main():
+    global COM_SEP, CLOSE_COM, HELP_COM, ADD_COM, VIEW_COM, DELETE_COM, LIST_TAGS_COM
     PROMPT = '>>> '
-    CLOSE_COM = 'close'
-    HELP_COM = 'help'
-    ADD_COM = 'add'
-    VIEW_COM = 'view'
-    DELETE_COM = 'remove'
-    COM_SEP = ' '
+    EDIT_PROMPT = 'EDIT "{0}"> '
     LIST_FILENAME = 'my_anime_list.csv'
     COM_ERROR = 'Command not recognised!'
 
+    anime_list = load(LIST_FILENAME)
+    editting = None
     aid()
+    print()
     while True:
-        com = input(PROMPT)
+        if editting == None:
+            com = input(PROMPT)
+        else:
+            for tag in anime_list[editting]:
+                print(f'"{tag}"')
+            com = input(EDIT_PROMPT.format(editting))
         if com == CLOSE_COM:
+            save(anime_list, LIST_FILENAME)
             close()
         elif com == HELP_COM:
             aid()
         elif com.partition(COM_SEP)[0] == ADD_COM:
-            add(LIST_FILENAME, com.partition(COM_SEP)[2])
+            anime_list = add(anime_list, com.partition(COM_SEP)[2])
+            editting = None
         elif com.partition(COM_SEP)[0] == VIEW_COM:
-            view(LIST_FILENAME, com.partition(COM_SEP)[2])
+            view(anime_list, com.partition(COM_SEP)[2])
+            editting = None
         elif com.partition(COM_SEP)[0] == DELETE_COM:
-            delete(LIST_FILENAME, com.partition(COM_SEP)[2])
+            anime_list = delete(anime_list, com.partition(COM_SEP)[2])
+            editting = None
+        elif com.partition(COM_SEP)[0] == EDIT_COM:
+            editting = edit(anime_list, editting, com.partition(COM_SEP)[2])
+        elif com.partition(COM_SEP)[0] == ADD_TAG_COM:
+            anime_list = add_tag(anime_list, editting, com.partition(COM_SEP)[2])
+        elif com.partition(COM_SEP)[0] == DELETE_TAG_COM:
+            anime_list = delete_tag(anime_list, editting, com.partition(COM_SEP)[2])
+        elif com.partition(COM_SEP)[0] == LIST_TAGS_COM:
+            list_tags(anime_list, com.partition(COM_SEP)[2])
+            editting = None
         else:
             print(COM_ERROR)
+        print()
+
+def split_join(string: str, split: str, encase: str) -> [str]:
+    parts = string.split(split)
+    i = 0
+    while i < len(parts) - 1:
+        if parts[i].count(encase) % 2 != 0:
+            parts = [parts[i] + parts[i + 1]] + parts[2:]
+            continue
+        i += 1
+    return parts
+
+def load(filename: str) -> {str: {str}}:
+    global FILE_SEP_CHAR, FILE_STR_CHAR
+    #open file
+    try:
+        file = open(filename, 'rt')
+    except OSError:
+        file.close()
+        return dict()
+    #read file
+    anime_list = dict()
+    while file.readable():
+        line = file.readline()
+        if line == '':
+            break
+        title = split_join(line.replace('\n', ''), FILE_SEP_CHAR, FILE_STR_CHAR)[0].replace(FILE_STR_CHAR, '')
+        tags = split_join(line.replace('\n', ''), FILE_SEP_CHAR, FILE_STR_CHAR)[1:]
+        for i in range(len(tags)):
+            tags[i] = tags[i].replace(FILE_STR_CHAR, '')
+        anime_list[title] = set(tags)
+    file.close()
+    return anime_list
+
+def save(anime_list: {str: {str}}, filename: str):
+    global FILE_SEP_CHAR, FILE_STR_CHAR
+    #open file
+    try:
+        file = open(filename, 'wt')
+    except OSError:
+        file.close()
+        return
+    #read file
+    for title in anime_list:
+        line = ''
+        line += f'{FILE_STR_CHAR}{title}{FILE_STR_CHAR}'
+        for tag in anime_list[title]:
+            line += f'{FILE_SEP_CHAR}{FILE_STR_CHAR}{tag}{FILE_STR_CHAR}'
+        line += '\n'
+        file.write(line)
 
 def close():
     raise SystemExit
 
 def aid():
+    global COM_SEP, CLOSE_COM, HELP_COM, ADD_COM, VIEW_COM, DELETE_COM, EDIT_COM, ADD_TAG_COM, DELETE_TAG_COM, LIST_TAGS_COM
     HELP_TEXT = (
-        'close: close the program',
-        'help: display this help text',
-        'view *max_items*: display titles on your anime list',
+        f'{CLOSE_COM}: close the program',
+        f'{HELP_COM}: display this help text',
+        f'{VIEW_COM}{COM_SEP}*max_items*: display titles on your anime list',
         '\t*max_items*: the maximum number of titles to display (leave blank for all titles)',
-        'add *anime_title*: add an anime title to your list',
+        f'{ADD_COM}{COM_SEP}*anime_title*: add an anime title to your list',
         '\t*anime_title*: the anime title you wish to add',
-        'remove *anime_title*: remove an anime title from your list',
+        f'{DELETE_COM}{COM_SEP}*anime_title*: remove an anime title from your list',
         '\t*anime_title*: the anime title you wish to remove',
+        f'{EDIT_COM}{COM_SEP}*anime_title*: edit the tags of an anime title from your list',
+        '\t*anime_title*: the anime title you wish to edit the tags of',
+        f'{ADD_TAG_COM}{COM_SEP}*tag*: add a tag to the anime title being editted',
+        '\t*tag*: the tag you wish to add to the anime title being editted',
+        f'{DELETE_TAG_COM}{COM_SEP}*tag*: remove a tag from the anime title being editted',
+        '\t*tag*: the tag you wish to remove from the anime title being edited',
+        f'{LIST_TAGS_COM}{COM_SEP}*max_items*: display the tags in your anime list',
+        '\t*max_items*: the maximum number of tags to display (leave blank for all tags)',
         )
     
+    #print help text
     for item in HELP_TEXT:
         print(item)
 
-def add(filename: str, title: str):
+def add(anime_list: {str: {str}}, title: str) -> {str: {str}}:
     EMPTY_ERROR = '*anime_title* cannot be empty!'
     EXIST_ERROR = '"{0}" is already on your anime list!'
     ADD_SUCCESS = 'Added "{0}" to your anime list.'
-
+    
+    #check for empty title
     if title == '':
         print(EMPTY_ERROR)
-        return
-    file = FileList(filename)
-    if file.find(title) != -1:
+        return anime_list
+    
+    #check for existing title
+    if title in anime_list:
         print(EXIST_ERROR.format(title))
-    else:
-        file.append(title)
-        print(ADD_SUCCESS.format(title))
+        return anime_list
+    
+    #add title to list
+    anime_list[title] = set()
+    print(ADD_SUCCESS.format(title))
+    return anime_list
 
-def view(filename: str, num: int = None):
+def view(anime_list: {str: {str}}, num: int = None):
     INT_ERROR = '*max_items* must be a number!'
-    NUM_ERROR = '*max_items* must be 1 or geater!'
+    NUM_ERROR = '*max_items* must be 1 or greater!'
     HEADER = 'Displaying {0} of {1} anime titles:'
     EMPTY_LIST = 'You have nothing in your anime list.'
-
+    
     #argument processing
-    file = FileList(filename)
-    count = len(file)
+    count = len(anime_list)
     if num == None or num == '':
         num = count
     else:
@@ -83,32 +179,197 @@ def view(filename: str, num: int = None):
             return
         elif count < num:
             num = count
-
+            
     #check empty list
     if count < 1:
         print(EMPTY_LIST)
         return
-
+    
     #display titles
     print(HEADER.format(num, count))
     for i in range(num):
-        print(file[i])
+        line = f'"{list(anime_list.keys())[i]}"'
+        print(line)
 
-def delete(filename: str, title: str):
+def delete(anime_list: {str: {str}}, title: str) -> {str: {str}}:
     EMPTY_ERROR = '*anime_title* cannot be empty!'
     NOT_FOUND = 'Could not find "{0}"!'
     DELETE_SUCCESS = 'Removed "{0}" from your anime list.'
-
+    
+    #check empty title
     if title == '':
         print(EMPTY_ERROR)
-        return
-    file = FileList(filename)
-    pos = file.find(title)
-    if pos == -1:
+        return anime_list
+    
+    #check for existing title
+    if title not in anime_list:
         print(NOT_FOUND.format(title))
+        return anime_list
+    
+    #remove title from list
+    del anime_list[title]
+    print(DELETE_SUCCESS.format(title))
+    return anime_list
+
+def edit(anime_list: {str: {str}}, editting: str, title: str) -> str:
+    EMPTY_TITLE = '*anime_title* cannot be empty!'
+    NOT_FOUND = 'Could not find "{0}"!'
+    SUCCESS = 'Now editting the tags of "{0}".'
+    
+    #check empty title
+    if title == '':
+        print(EMPTY_TITLE)
+        return editting
+    
+    #check existing title
+    if title not in anime_list:
+        print(NOT_FOUND.format(title))
+        return editting
+            
+    #edit title
+    print(SUCCESS.format(title))
+    return title
+
+def add_tag(anime_list: {str: {str}}, title: str, tag: str) -> {str: {str}}:
+    EMPTY_TITLE = '*anime_title* cannot be empty!'
+    EMPTY_TAG = '*tag* cannot be empty!'
+    NOT_FOUND = 'Could not find "{0}"!'
+    TAG_EXIST = '"{0}" already has the tag "{1}"!'
+    SUCCESS = 'Added the tag "{1}" from "{0}".'
+    
+    #check empty title
+    if title == '':
+        print(EMPTY_TITLE)
+        return anime_list
+    
+    #check empty tag
+    if tag == '':
+        print(EMPTY_TAG)
+        return anime_list
+        
+    #check for existing title
+    if title not in anime_list:
+        print(NOT_FOUND.format(title))
+        return anime_list
+    
+    #check for existing tag
+    if tag in anime_list[title]:
+        print(TAG_EXIST.format(title, tag))
+        return anime_list
+    
+    #add tag
+    anime_list[title].add(tag)
+    print(SUCCESS.format(title, tag))
+    return anime_list
+
+def delete_tag(anime_list: {str: {str}}, title: str, tag: str) -> {str: {str}}:
+    EMPTY_TITLE = '*anime_title* cannot be empty!'
+    EMPTY_TAG = '*tag* cannot be empty!'
+    NOT_FOUND = 'Could not find "{0}"!'
+    TAG_NOT_EXIST = '"{0}" does not have the tag "{1}"!'
+    SUCCESS = 'Removed the tag "{1}" from "{0}".'
+    
+    #check empty title
+    if title == '':
+        print(EMPTY_TITLE)
+        return anime_list
+    
+    #check empty tag
+    if tag == '':
+        print(EMPTY_TAG)
+        return anime_list
+    
+    #check for existing title
+    if title not in anime_list:
+        print(NOT_FOUND.format(title))
+        return anime_list
+    
+    #check for existing tag
+    if tag not in anime_list[title]:
+        print(TAG_NOT_EXIST)
+        return anime_list
+    
+    #delete tag
+    anime_list[title].remove(tag)
+    print(SUCCESS.format(title, tag))
+    return anime_list
+
+def list_tags(anime_list: {str: {str}}, num: int = None):
+    NO_TAGS = 'You have no tags in your anime list.'
+    NUM_ERROR = '*max_items* must be 1 or greater!'
+    HEADER = 'Displaying {0} of {1} tags:'
+    
+    #calculate tag list
+    tags = set()
+    for title in anime_list:
+        tags = tags.union(anime_list[title])
+        
+    #check tags exist
+    if len(tags) < 1:
+        print(NO_TAGS)
+        return
+        
+    #process max limit
+    if num == None or num == '':
+        num = len(tags)
+    num = int(num)
+    if num < 1:
+        print(NUM_ERROR)
+        return
+        
+    #display tags
+    print(HEADER.format(num, len(tags)))
+    for i in range(num):
+        print(f'"{list(tags)[i]}"')
+
+def search_by_title(anime_list: {str: {str}}, title: str, num: int = None):
+    NO_MATCH = 'No matches were found!'
+    
+    #find matches
+    result = list()
+    relevence = list()
+    for i in range(len(anime_list)):
+        if title in anime_list.keys()[i]:
+            result.append(anime_list.keys()[i])
+            relevence.append(len(anime_list.keys()[i].replace(title, '')))
+    if len(result) > 0:
+        
+        #sort by relevence
+        for i in range(len(result)):
+            for j in range(i + 1, len(result)):
+                if relevence[j] < relevence[i]:
+                    temp = result[i]
+                    result[i] = result[j]
+                    result[j] = temp
+                    temp = relevence[i]
+                    relevence[i] = relevence[j]
+                    relevence[j] = temp
+                    
+        #print results
+        temp_anime_list = dict()
+        for key in result:
+            temp_anime_list[key] = anime_list[key]
+        view(temp_anime_list, num)
     else:
-        del file[pos]
-        print(DELETE_SUCCESS.format(title))
+        print(NO_MATCH)
+
+def search_by_tag(anime_list: {str: {str}}, tag: str, num: int = None):
+    NO_MATCH = 'No matches were found!'
+    
+    #find matches
+    result = list()
+    for i in range(len(anime_list)):
+        if tag in anime_list.values():
+            result.append(anime_list.keys()[i])
+    if len(result) > 0:
+        
+        #print results
+        temp_anime_list = dict()
+        for key in result:
+            temp_anime_list[key] = anime_list[key]
+        view(temp_anime_list, num)
+    else:
+        print(NO_MATCH)
         
 if __name__ == '__main__':
     main()
