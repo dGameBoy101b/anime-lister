@@ -1,5 +1,3 @@
-from os import path
-
 #file io constants
 FILE_SEP_CHAR = ','
 FILE_STR_CHAR = '`'
@@ -15,9 +13,11 @@ EDIT_COM = 'edit'
 ADD_TAG_COM = 'tag'
 DELETE_TAG_COM = 'untag'
 LIST_TAGS_COM = 'tags'
+TITLE_SEARCH_COM = 'title_search'
+TAG_SEARCH_COM = 'tag_search'
 
 def main():
-    global COM_SEP, CLOSE_COM, HELP_COM, ADD_COM, VIEW_COM, DELETE_COM, LIST_TAGS_COM
+    global COM_SEP, CLOSE_COM, HELP_COM, ADD_COM, VIEW_COM, DELETE_COM, LIST_TAGS_COM, TITLE_SEARCH_COM, TAG_SEARCH_COM
     PROMPT = '>>> '
     EDIT_PROMPT = 'EDIT "{0}"> '
     LIST_FILENAME = 'my_anime_list.csv'
@@ -56,6 +56,12 @@ def main():
             anime_list = delete_tag(anime_list, editting, com.partition(COM_SEP)[2])
         elif com.partition(COM_SEP)[0] == LIST_TAGS_COM:
             list_tags(anime_list, com.partition(COM_SEP)[2])
+            editting = None
+        elif com.partition(COM_SEP)[0] == TITLE_SEARCH_COM:
+            search_by_title(anime_list, com.partition(COM_SEP)[2])
+            editting = None
+        elif com.partition(COM_SEP)[0] == TAG_SEARCH_COM:
+            search_by_tag(anime_list, com.partition(COM_SEP)[2])
             editting = None
         else:
             print(COM_ERROR)
@@ -114,7 +120,7 @@ def close():
     raise SystemExit
 
 def aid():
-    global COM_SEP, CLOSE_COM, HELP_COM, ADD_COM, VIEW_COM, DELETE_COM, EDIT_COM, ADD_TAG_COM, DELETE_TAG_COM, LIST_TAGS_COM
+    global COM_SEP, CLOSE_COM, HELP_COM, ADD_COM, VIEW_COM, DELETE_COM, EDIT_COM, ADD_TAG_COM, DELETE_TAG_COM, LIST_TAGS_COM, TITLE_SEARCH_COM, TAG_SEARCH_COM
     HELP_TEXT = (
         f'{CLOSE_COM}: close the program',
         f'{HELP_COM}: display this help text',
@@ -132,6 +138,10 @@ def aid():
         '\t*tag*: the tag you wish to remove from the anime title being edited',
         f'{LIST_TAGS_COM}{COM_SEP}*max_items*: display the tags in your anime list',
         '\t*max_items*: the maximum number of tags to display (leave blank for all tags)',
+        f'{TITLE_SEARCH_COM}{COM_SEP}*title*: search for anime titles with a phrase in their title',
+        '\t*title*: the phrase to search for in the titles of the animes in your list',
+        f'{TAG_SEARCH_COM}{COM_SEP}*tag*: search for anime titles with a tag',
+        '\t*tag*: the tag to search for',
         )
     
     #print help text
@@ -158,38 +168,42 @@ def add(anime_list: {str: {str}}, title: str) -> {str: {str}}:
     print(ADD_SUCCESS.format(title))
     return anime_list
 
+def display(anime_list: {str: {str}}, header: str = '', empty: str = '', num: int = None):
+    #argument processing
+    if not (isinstance(num, int) or num == None):
+        raise TypeError(f'num must be an integer, not a {type(num)}!')
+    if num == None:
+        num = len(anime_list)
+    elif num < 1 or num > len(anime_list):
+        raise IndexError(f'num must be between 1 and {len(anime_list)}, not {num}!')
+            
+    #check empty list
+    if len(anime_list) < 1:
+        print(empty)
+        return
+    
+    #display titles
+    print(header.format(num, len(anime_list)))
+    for i in range(num):
+        print(f'"{list(anime_list.keys())[i]}"')
+
 def view(anime_list: {str: {str}}, num: int = None):
     INT_ERROR = '*max_items* must be a number!'
     NUM_ERROR = '*max_items* must be 1 or greater!'
     HEADER = 'Displaying {0} of {1} anime titles:'
     EMPTY_LIST = 'You have nothing in your anime list.'
-    
+
     #argument processing
-    count = len(anime_list)
-    if num == None or num == '':
-        num = count
-    else:
-        try:
-            num = int(num)
-        except ValueError:
-            print(INT_ERROR)
-            return
-        if num < 1:
-            print(NUM_ERROR)
-            return
-        elif count < num:
-            num = count
-            
-    #check empty list
-    if count < 1:
-        print(EMPTY_LIST)
-        return
-    
-    #display titles
-    print(HEADER.format(num, count))
-    for i in range(num):
-        line = f'"{list(anime_list.keys())[i]}"'
-        print(line)
+    if num == '':
+        num = None
+
+    #display list
+    try:
+        display(anime_list, HEADER, EMPTY_LIST, num)
+    except TypeError:
+        print(NUM_ERROR)
+    except IndexError:
+        print(INT_ERROR)
 
 def delete(anime_list: {str: {str}}, title: str) -> {str: {str}}:
     EMPTY_ERROR = '*anime_title* cannot be empty!'
@@ -238,12 +252,12 @@ def add_tag(anime_list: {str: {str}}, title: str, tag: str) -> {str: {str}}:
     SUCCESS = 'Added the tag "{1}" from "{0}".'
     
     #check empty title
-    if title == '':
+    if title == '' or title == None:
         print(EMPTY_TITLE)
         return anime_list
     
     #check empty tag
-    if tag == '':
+    if tag == '' or title == None:
         print(EMPTY_TAG)
         return anime_list
         
@@ -270,12 +284,12 @@ def delete_tag(anime_list: {str: {str}}, title: str, tag: str) -> {str: {str}}:
     SUCCESS = 'Removed the tag "{1}" from "{0}".'
     
     #check empty title
-    if title == '':
+    if title == '' or title == None:
         print(EMPTY_TITLE)
         return anime_list
     
     #check empty tag
-    if tag == '':
+    if tag == '' or tag == None:
         print(EMPTY_TAG)
         return anime_list
     
@@ -323,53 +337,47 @@ def list_tags(anime_list: {str: {str}}, num: int = None):
         print(f'"{list(tags)[i]}"')
 
 def search_by_title(anime_list: {str: {str}}, title: str, num: int = None):
-    NO_MATCH = 'No matches were found!'
+    NO_MATCH = 'No title matches found for "{0}"!'
+    HEADER = 'Displaying {1} of {2} results for "{0}" title search:'
     
     #find matches
     result = list()
     relevence = list()
     for i in range(len(anime_list)):
-        if title in anime_list.keys()[i]:
-            result.append(anime_list.keys()[i])
-            relevence.append(len(anime_list.keys()[i].replace(title, '')))
-    if len(result) > 0:
-        
-        #sort by relevence
-        for i in range(len(result)):
-            for j in range(i + 1, len(result)):
-                if relevence[j] < relevence[i]:
-                    temp = result[i]
-                    result[i] = result[j]
-                    result[j] = temp
-                    temp = relevence[i]
-                    relevence[i] = relevence[j]
-                    relevence[j] = temp
-                    
-        #print results
-        temp_anime_list = dict()
-        for key in result:
-            temp_anime_list[key] = anime_list[key]
-        view(temp_anime_list, num)
-    else:
-        print(NO_MATCH)
-
+        if title in list(anime_list.keys())[i]:
+            result.append(list(anime_list.keys())[i])
+            relevence.append(len(list(anime_list.keys())[i].replace(title, '')))
+    #sort by relevence
+    for i in range(len(result)):
+        for j in range(i + 1, len(result)):
+            if relevence[j] < relevence[i]:
+                temp = result[i]
+                result[i] = result[j]
+                result[j] = temp
+                temp = relevence[i]
+                relevence[i] = relevence[j]
+                relevence[j] = temp
+                
+    #print results
+    temp_anime_list = dict()
+    for key in result:
+        temp_anime_list[key] = anime_list[key]
+    display(temp_anime_list, HEADER.format(title, '{0}', '{1}'), NO_MATCH.format(title), None)
+    
 def search_by_tag(anime_list: {str: {str}}, tag: str, num: int = None):
-    NO_MATCH = 'No matches were found!'
+    NO_MATCH = 'No tag matches found for "{0}"!'
+    HEADER = 'Displaying {1} of {2} results for "{0}" tag search:'
     
     #find matches
     result = list()
     for i in range(len(anime_list)):
-        if tag in anime_list.values():
-            result.append(anime_list.keys()[i])
-    if len(result) > 0:
-        
-        #print results
-        temp_anime_list = dict()
-        for key in result:
-            temp_anime_list[key] = anime_list[key]
-        view(temp_anime_list, num)
-    else:
-        print(NO_MATCH)
+        if tag in list(anime_list.values())[i]:
+            result.append(list(anime_list.keys())[i])
+    #print results
+    temp_anime_list = dict()
+    for key in result:
+        temp_anime_list[key] = anime_list[key]
+    display(temp_anime_list, HEADER.format(tag, '{0}', '{1}'), NO_MATCH.format(tag), None)
         
 if __name__ == '__main__':
     main()
